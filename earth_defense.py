@@ -71,6 +71,15 @@ restart_hovered_img = 'RESTART_hovered.png'
 main_menu_img = 'MAIN-MENU.png'
 main_menu_hovered_img = 'MAIN-MENU_hovered.png'
 
+#----------MUSIC & SOUND FX----------
+#main game music
+game_music = "Eric Skiff - We're all under the stars.mp3"
+
+#player laser firing
+player_firing_sound = '8bit_sfx/270343__littlerobotsoundfactory__shoot-01.wav'
+
+
+
 
 #----------PYGAME GROUPS----------
 #list to hold player instance using pygame's Sprite superclass
@@ -95,12 +104,17 @@ def main():
     #pygame.init()
     pygame.font.init()
     pygame.display.init()
+    pygame.mixer.init()
 
     #game interface initialization
     game_interface = classes.Interface(DISPLAY_WIDTH, DISPLAY_HEIGHT)
     game_interface.set_background(space_background)
     game_interface.set_caption("Earth Defense")
     game_interface.update_healthbar(healthbar_img[3])
+
+    #game music initialization
+    pygame.mixer.music.load(game_music)
+    pygame.mixer.music.play(-1)
 
     #game attribute initialization
     #player
@@ -114,6 +128,7 @@ def main():
     max_enemies = 5
     enemy_vel = 1
 
+    player_vel = 10
     firing_interval = 250                      #rate of fire of the player ship's lasers
     prev_fire = pygame.time.get_ticks()
 
@@ -159,6 +174,7 @@ def main():
             max_enemies = 5
             enemy_vel = 1
 
+            player_vel = 5
             firing_interval = 250                      #rate of fire of the player ship's lasers
             prev_fire = pygame.time.get_ticks()
 
@@ -169,31 +185,33 @@ def main():
         pressed_keys = pygame.key.get_pressed()
 
         #player ship movement
-        if pressed_keys[pygame.K_a] or pressed_keys[pygame.K_LEFT]:
-            if player_ship.x <= 0 - player_ship.width / 2:
-                player_ship.x = (game_interface.display_width - player_ship.width / 2)
+        if player_ship.stunned == False:
 
-            else:
-                player_ship.x -= 5
+            if pressed_keys[pygame.K_a] or pressed_keys[pygame.K_LEFT]:
+                if player_ship.x <= 0 - player_ship.width / 2:
+                    player_ship.x = (game_interface.display_width - player_ship.width / 2)
 
-        if pressed_keys[pygame.K_d] or pressed_keys[pygame.K_RIGHT]:
-            if player_ship.x >= (game_interface.display_width - player_ship.width / 2):
-                player_ship.x = 0 - player_ship.width / 2
+                else:
+                    player_ship.x -= 1 * player_vel
 
-            else:
-                player_ship.x += 5
+            if pressed_keys[pygame.K_d] or pressed_keys[pygame.K_RIGHT]:
+                if player_ship.x >= (game_interface.display_width - player_ship.width / 2):
+                    player_ship.x = 0 - player_ship.width / 2
 
-        if pressed_keys[pygame.K_w] or pressed_keys[pygame.K_UP]:
-            if player_ship.y <= 0 + player_ship.height / 2:
-                pass
-            else:
-                player_ship.y -= 5
+                else:
+                    player_ship.x += 1 * player_vel
 
-        if pressed_keys[pygame.K_s] or pressed_keys[pygame.K_DOWN]:
-            if player_ship.y >= game_interface.display_height - (4 * player_ship.height) / 2:
-                pass
-            else:
-                player_ship.y += 5
+            if pressed_keys[pygame.K_w] or pressed_keys[pygame.K_UP]:
+                if player_ship.y <= 0 + player_ship.height / 2:
+                    pass
+                else:
+                    player_ship.y -= 1 * player_vel
+
+            if pressed_keys[pygame.K_s] or pressed_keys[pygame.K_DOWN]:
+                if player_ship.y >= game_interface.display_height - (4 * player_ship.height) / 2:
+                    pass
+                else:
+                    player_ship.y += 1 * player_vel
 
         player_ship.update_hitbox()
 
@@ -208,20 +226,22 @@ def main():
     
 
         #laser firing
-        curr_fire = pygame.time.get_ticks()
-        if (pressed_keys[pygame.K_RETURN] or pressed_keys[pygame.K_SPACE]) and curr_fire - prev_fire >= firing_interval:
+        if player_ship.stunned == False:
 
-            #x-values to fire from player ship's guns (visual adjustments)
-            prev_fire = curr_fire
-            new_laser_left = classes.Laser(laser_list, player_ship.x + 4.8, player_ship.y + 15, 3, 15, 5)
-            new_laser_left.set_sprite(laser_img)
-            new_laser_right = classes.Laser(laser_list, player_ship.x + (player_ship.width - 6), player_ship.y + 15, 3, 15, 5)
-            new_laser_right.set_sprite(laser_img)
+            curr_fire = pygame.time.get_ticks()
+            if (pressed_keys[pygame.K_RETURN] or pressed_keys[pygame.K_SPACE]) and curr_fire - prev_fire >= firing_interval:
 
-            #change player ship to firing effect sprite
-            player_ship.set_sprite(player_sprites[1])
-            player_ship.fire_frame_count = 0
-            player_ship.firing = True
+                #x-values to fire from player ship's guns (visual adjustments)
+                prev_fire = curr_fire
+                new_laser_left = classes.Laser(laser_list, player_ship.x + 4.8, player_ship.y + 15, 3, 15, 5)
+                new_laser_left.set_sprite(laser_img)
+                new_laser_right = classes.Laser(laser_list, player_ship.x + (player_ship.width - 6), player_ship.y + 15, 3, 15, 5)
+                new_laser_right.set_sprite(laser_img)
+
+                #change player ship to firing effect sprite
+                player_ship.set_sprite(player_sprites[1])
+                player_ship.fire_frame_count = 0
+                player_ship.firing = True
 
 
         #----------LASER MAINTENANCE----------
@@ -264,18 +284,28 @@ def main():
         #update enemy positions - enemies move closer to Earth at the set speed
         for enemy in enemy_list:
 
-            #remove enemy and create explosion if it reaches Earth
-            if enemy.y >= DISPLAY_HEIGHT - EXPLOSION_HEIGHT / 3:
+            #check for enemy reaches Earth case
+            if enemy.y >= DISPLAY_HEIGHT - EXPLOSION_HEIGHT / 2:
                 new_explosion = classes.Explosion(explosion_list, enemy.x - 2.2, enemy.y, EXPLOSION_WIDTH, EXPLOSION_HEIGHT,
                     explosion_animation, EXPLOSION_FRAMES)
                 enemy_list.remove(enemy)
                 
                 player_ship.health -= 1
 
-                #check for Game Over
+                #check for Game Over case
                 if player_ship.health == 0:
                     final_explosion = False
                     game_over = True
+
+
+            #check for player ship collision case
+            elif is_collision(player_ship, enemy):
+
+                #player becomes stunned and enemy ship explodes
+                player_ship.stun_player(120)
+                new_explosion = classes.Explosion(explosion_list, enemy.x - 2.2, enemy.y, EXPLOSION_WIDTH, EXPLOSION_HEIGHT,
+                        explosion_animation, EXPLOSION_FRAMES)
+                enemy_list.remove(enemy)
 
             else:
                 enemy.y += 1 * enemy_vel
@@ -312,7 +342,13 @@ def main():
         #if the final explosion was triggered, the explosion animation completes and rest of screen freezes
         if final_explosion:
 
-            player_ship.redraw(game_interface)
+            if player_ship.stunned:
+                if player_ship.get_stun_frame_count() % 10 == 0:
+                    player_ship.redraw(game_interface)
+                player_ship.stun_frame_count -= 1
+                
+            else:
+                player_ship.redraw(game_interface)
 
             for laser in laser_list:
                 laser.redraw(game_interface)
@@ -352,10 +388,18 @@ def is_collision(object1, object2):
     #OBJECT -> OBJECT
     else:
         #y-values check
-        if object1.hitbox[1] < object2.hitbox[1] + object2.hitbox[3] and object1.hitbox[1] + object1.hitbox[3] > object2.hitbox[1]:
+        #object 1 collision from positive y
+        if object1.hitbox[1] < object2.hitbox[1] + object2.hitbox[3] and object1.hitbox[1] > object2.hitbox[1]:
 
             #x-values check
-            if object1.hitbox[0] > object2.hitbox[0] and object1.hitbox[0] + object1.hitbox[2] < object2.hitbox[0] + object2.hitbox[2]:
+            if object1.hitbox[0] < object2.hitbox[0] + object2.hitbox[2] and object1.hitbox[0] + object1.hitbox[2] > object2.hitbox[0]:
+                return True
+
+        #object 1 collision from negative y
+        elif object1.hitbox[1] + object1.hitbox[3] > object2.hitbox[1] and object1.hitbox[1] < object2.hitbox[1]:
+
+            #x-values check
+            if object1.hitbox[0] < object2.hitbox[0] + object2.hitbox[2] and object1.hitbox[0] + object1.hitbox[2] > object2.hitbox[0]:
                 return True
 
         return False
